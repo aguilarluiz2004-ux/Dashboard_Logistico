@@ -96,14 +96,14 @@ def rodar_importacao():
     #=============================
     # Lendo da cópia, não do arquivo original
     #=============================
-    df_recebimento = pd.read_excel(caminho_backup, sheet_name='RECEBIMENTO')
+    df_recebimento = pd.read_excel(caminho_backup, sheet_name='RECEBIMENTO', dtype={'NUM.CTE': str})
     df_expedicao = pd.read_excel(caminho_backup, sheet_name='EXPEDICAO')
     df_etiquetas = pd.read_excel(caminho_backup, sheet_name='ETIQUETAS')
 
     #=============================
     # Formatando o recebimento
     #=============================
-    df_recebimento = df_recebimento[['NOTA FISCAL', 'QTD.PALLET', 'DATA', 'CLIENTE', 'NUM.PEDIDO', 'PLACA', 'TIPO DO VEICULO']]
+    df_recebimento = df_recebimento[['NOTA FISCAL', 'QTD.PALLET', 'DATA', 'CLIENTE', 'NUM.PEDIDO', 'PLACA', 'TIPO DO VEICULO', 'NUM.CTE']]
 
     df_recebimento = df_recebimento.rename(columns={
         'NOTA FISCAL': 'nota_fiscal',
@@ -112,7 +112,8 @@ def rodar_importacao():
         'CLIENTE': 'cliente',
         'NUM.PEDIDO': 'pedido',
         'PLACA': 'placa',
-        'TIPO DO VEICULO': 'veiculo'
+        'TIPO DO VEICULO': 'veiculo',
+        'NUM.CTE': 'cte'
     })
 
     validar_datas(df_recebimento, coluna='data', identificador='nota_fiscal', nome_tabela='recebimento')
@@ -165,7 +166,7 @@ def rodar_importacao():
     importar_tabela_completa(
         df=df_recebimento,
         nome_tabela='recebimento',
-        colunas_sql='nota_fiscal TEXT, pallets INTEGER, data TEXT, cliente TEXT, pedido TEXT, placa TEXT, veiculo TEXT',
+        colunas_sql='nota_fiscal TEXT, pallets INTEGER, data TEXT, cliente TEXT, pedido TEXT, placa TEXT, veiculo TEXT, cte TEXT',
         conn=conn
     )
 
@@ -431,7 +432,7 @@ def api_recebimento_resumo():
     cursor = conn.cursor()
     cursor.execute(f'''
         SELECT COUNT(*) as total, COUNT(DISTINCT cliente) as clientes, SUM(pallets) as pallets,
-               COUNT(DISTINCT placa) as veiculos, COUNT(DISTINCT veiculo) as tipos
+               COUNT(DISTINCT NULLIF(TRIM(cte), '')) as veiculos, COUNT(DISTINCT veiculo) as tipos
         FROM recebimento
         WHERE {where}
     ''', params)
@@ -486,9 +487,9 @@ def api_recebimento_por_tipo_veiculo():
     where, params = filtro_data(request.args.get('mes'), request.args.get('ano'), request.args.get('quinzena'))
     conn = get_conn()
     cursor = conn.cursor()
-    # Conta veículos distintos (por placa), não recebimentos
+    # Conta veículos pelo CTE (um CTE = um veículo), não recebimentos
     cursor.execute(f'''
-        SELECT veiculo as tipo, COUNT(DISTINCT placa) as total
+        SELECT veiculo as tipo, COUNT(DISTINCT NULLIF(TRIM(cte), '')) as total
         FROM recebimento
         WHERE {where}
         GROUP BY veiculo

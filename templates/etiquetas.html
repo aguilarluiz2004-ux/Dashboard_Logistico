@@ -76,6 +76,20 @@ function paramsAtuais() {
 
 let chartOperador, chartCliente, chartDia;
 
+// Opções para gráficos de barras horizontais: mostra o nome de todas as
+// barras (sem esconder rótulos) e usa números inteiros no eixo de valores.
+function opcoesBarraHorizontal(qtd) {
+  return {
+    ...chartOptions(),
+    indexAxis: 'y',
+    aspectRatio: qtd > 5 ? 1 : 2,
+    scales: {
+      x: { ticks: { color: '#93a4b8', precision: 0 }, grid: { color: '#29374966' }, beginAtZero: true },
+      y: { ticks: { color: '#93a4b8', autoSkip: false, font: { size: 11 } }, grid: { color: '#29374966' } },
+    },
+  };
+}
+
 async function carregar() {
   const qs = paramsAtuais();
 
@@ -84,6 +98,7 @@ async function carregar() {
   document.getElementById('kpi-percentual').textContent = resumo.percentual_concluido + '%';
   document.getElementById('kpi-tempo').textContent = resumo.tempo_medio_horas + 'h';
 
+  // ---- Caixas por operador ----
   const porOperador = await (await fetch('/api/etiquetas/por-operador?' + qs)).json();
   const ctxOperador = document.getElementById('chart-operador');
   if (chartOperador) chartOperador.destroy();
@@ -97,9 +112,10 @@ async function carregar() {
         backgroundColor: '#4fd1c5',
       }],
     },
-    options: { ...chartOptions(), indexAxis: 'y' },
+    options: opcoesBarraHorizontal(porOperador.length),
   });
 
+  // ---- Caixas por cliente ----
   const porCliente = await (await fetch('/api/etiquetas/por-cliente?' + qs)).json();
   const ctxCliente = document.getElementById('chart-cliente');
   if (chartCliente) chartCliente.destroy();
@@ -113,9 +129,10 @@ async function carregar() {
         backgroundColor: '#f2a93c',
       }],
     },
-    options: { ...chartOptions(), indexAxis: 'y' },
+    options: opcoesBarraHorizontal(porCliente.length),
   });
 
+  // ---- Pallets por dia ----
   const porDia = await (await fetch('/api/etiquetas/por-dia?' + qs)).json();
   const ctxDia = document.getElementById('chart-dia');
   if (chartDia) chartDia.destroy();
@@ -129,7 +146,13 @@ async function carregar() {
         backgroundColor: '#63b3ed',
       }],
     },
-    options: chartOptions(),
+    options: {
+      ...chartOptions(),
+      scales: {
+        x: { ticks: { color: '#93a4b8' }, grid: { color: '#29374966' } },
+        y: { ticks: { color: '#93a4b8', precision: 0 }, grid: { color: '#29374966' }, beginAtZero: true },
+      },
+    },
   });
 }
 

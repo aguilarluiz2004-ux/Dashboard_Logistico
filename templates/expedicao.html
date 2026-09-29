@@ -83,6 +83,7 @@ async function carregar() {
   document.getElementById('kpi-veiculos').textContent = resumo.total_veiculos;
   document.getElementById('kpi-tipos').textContent = resumo.total_tipos_veiculo;
 
+  // ---- Expedições por dia ----
   const porDia = await (await fetch('/api/expedicao/por-dia?' + qs)).json();
   const ctxDia = document.getElementById('chart-dia');
   if (chartDia) chartDia.destroy();
@@ -102,6 +103,7 @@ async function carregar() {
     options: chartOptions(),
   });
 
+  // ---- Paletes por tipo de veículo ----
   const porTipoVeiculo = await (await fetch('/api/expedicao/por-tipo-veiculo?' + qs)).json();
   const ctxTipoVeiculo = document.getElementById('chart-tipo-veiculo');
   if (chartTipoVeiculo) chartTipoVeiculo.destroy();
@@ -115,9 +117,17 @@ async function carregar() {
         backgroundColor: '#4fd1c5',
       }],
     },
-    options: { ...chartOptions(), indexAxis: 'y' },
+    options: {
+      ...chartOptions(),
+      indexAxis: 'y',
+      scales: {
+        x: { ticks: { color: '#93a4b8', precision: 0 }, grid: { color: '#29374966' }, beginAtZero: true },
+        y: { ticks: { color: '#93a4b8' }, grid: { color: '#29374966' } },
+      },
+    },
   });
 
+  // ---- Paletes por cliente (mostra o nome de todos, sem esconder rótulos) ----
   const porCliente = await (await fetch('/api/expedicao/por-cliente?' + qs)).json();
   const ctxCliente = document.getElementById('chart-cliente');
   if (chartCliente) chartCliente.destroy();
@@ -131,7 +141,15 @@ async function carregar() {
         backgroundColor: '#f2a93c',
       }],
     },
-    options: { ...chartOptions(), indexAxis: 'y' },
+    options: {
+      ...chartOptions(),
+      indexAxis: 'y',
+      aspectRatio: porCliente.length > 5 ? 1 : 2,
+      scales: {
+        x: { ticks: { color: '#93a4b8', precision: 0 }, grid: { color: '#29374966' }, beginAtZero: true },
+        y: { ticks: { color: '#93a4b8', autoSkip: false, font: { size: 11 } }, grid: { color: '#29374966' } },
+      },
+    },
   });
 }
 
