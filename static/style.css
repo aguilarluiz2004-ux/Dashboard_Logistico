@@ -1,0 +1,207 @@
+:root {
+  --bg: #0f1720;
+  --panel: #17212b;
+  --border: #293749;
+  --text: #e6edf3;
+  --muted: #93a4b8;
+  --teal: #4fd1c5;
+  --amber: #f2a93c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ---------- Sidebar ---------- */
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.brand {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 32px;
+}
+
+.brand small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.brand .truck {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nav a {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.nav a:hover {
+  background: #1f2b38;
+  color: var(--text);
+}
+
+.nav a.active {
+  background: #1f2b38;
+  color: var(--teal);
+  border-left: 2px solid var(--teal);
+  padding-left: 10px;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.5;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- Main content ---------- */
+
+main {
+  flex: 1;
+  padding: 32px 40px;
+  max-width: 1100px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+}
+
+.filters select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
+/* ---------- KPI cards ---------- */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.kpi {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 18px 20px;
+}
+
+.kpi .label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.kpi .value {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--teal);
+}
+
+/* ---------- Chart panels ---------- */
+
+.charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.panel h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+
+.panel canvas {
+  max-height: 280px;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 720px) {
+  .shell {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    padding: 16px 20px;
+  }
+  .sidebar-footer {
+    display: none;
+  }
+  main {
+    padding: 20px;
+  }
+}

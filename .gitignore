@@ -1,0 +1,19 @@
+# Dados da operação (não versionar!)
+operacao.db
+*.xlsx
+backups/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Arquivos temporários e do sistema
+*.log
+Thumbs.db
+.DS_Store
+
+# Editor
+.idea/
+.vscode/

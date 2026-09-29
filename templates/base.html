@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Dashboard Logística{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        4LOG <br>PORTO BRASIL
+      </div>
+      <nav class="nav">
+        <a href="{{ url_for('dashboard_recebimento') }}" class="{{ 'active' if active == 'recebimento' else '' }}">Recebimento</a>
+        <a href="{{ url_for('dashboard_expedicao') }}" class="{{ 'active' if active == 'expedicao' else '' }}">Expedição</a>
+        <a href="{{ url_for('dashboard_etiquetas') }}" class="{{ 'active' if active == 'etiquetas' else '' }}">Etiquetas</a>
+      </nav>
+      <div class="sidebar-footer">
+        Dados lidos direto dos bancos SQLite locais. Atualiza sozinho a cada carregamento da página.
+      </div>
+    </aside>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

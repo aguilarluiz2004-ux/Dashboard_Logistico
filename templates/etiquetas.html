@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Etiquetas — Dashboard Logística{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Etiquetas</h1>
+  <div class="filters">
+    <select id="f-mes"></select>
+    <select id="f-ano"></select>
+    <select id="f-quinzena">
+      <option value="0">Mês inteiro</option>
+      <option value="1">1ª quinzena</option>
+      <option value="2">2ª quinzena</option>
+    </select>
+  </div>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="label">Pedidos etiquetados</div><div class="value" id="kpi-pedidos">—</div></div>
+  <div class="kpi"><div class="label">% concluído</div><div class="value" id="kpi-percentual">—</div></div>
+  <div class="kpi"><div class="label">Tempo médio</div><div class="value" id="kpi-tempo">—</div></div>
+</div>
+
+<div class="charts">
+  <div class="panel">
+    <h2>Caixas etiquetadas por operador</h2>
+    <canvas id="chart-operador"></canvas>
+  </div>
+  <div class="panel">
+    <h2>Caixas etiquetadas por cliente</h2>
+    <canvas id="chart-cliente"></canvas>
+  </div>
+</div>
+
+<div class="charts">
+  <div class="panel" style="grid-column: 1 / -1;">
+    <h2>Pallets etiquetados por dia</h2>
+    <canvas id="chart-dia"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+const hoje = new Date();
+
+function preencherFiltros() {
+  const selMes = document.getElementById('f-mes');
+  MESES.forEach((m, i) => {
+    const opt = document.createElement('option');
+    opt.value = i + 1;
+    opt.textContent = m;
+    if (i + 1 === hoje.getMonth() + 1) opt.selected = true;
+    selMes.appendChild(opt);
+  });
+
+  const selAno = document.getElementById('f-ano');
+  const anoAtual = hoje.getFullYear();
+  for (let a = anoAtual; a >= anoAtual - 3; a--) {
+    const opt = document.createElement('option');
+    opt.value = a;
+    opt.textContent = a;
+    if (a === anoAtual) opt.selected = true;
+    selAno.appendChild(opt);
+  }
+}
+
+function paramsAtuais() {
+  return new URLSearchParams({
+    mes: document.getElementById('f-mes').value,
+    ano: document.getElementById('f-ano').value,
+    quinzena: document.getElementById('f-quinzena').value,
+  });
+}
+
+let chartOperador, chartCliente, chartDia;
+
+async function carregar() {
+  const qs = paramsAtuais();
+
+  const resumo = await (await fetch('/api/etiquetas/resumo?' + qs)).json();
+  document.getElementById('kpi-pedidos').textContent = resumo.total_pedidos;
+  document.getElementById('kpi-percentual').textContent = resumo.percentual_concluido + '%';
+  document.getElementById('kpi-tempo').textContent = resumo.tempo_medio_horas + 'h';
+
+  const porOperador = await (await fetch('/api/etiquetas/por-operador?' + qs)).json();
+  const ctxOperador = document.getElementById('chart-operador');
+  if (chartOperador) chartOperador.destroy();
+  chartOperador = new Chart(ctxOperador, {
+    type: 'bar',
+    data: {
+      labels: porOperador.map(r => r.operador),
+      datasets: [{
+        label: 'Caixas',
+        data: porOperador.map(r => r.caixas),
+        backgroundColor: '#4fd1c5',
+      }],
+    },
+    options: { ...chartOptions(), indexAxis: 'y' },
+  });
+
+  const porCliente = await (await fetch('/api/etiquetas/por-cliente?' + qs)).json();
+  const ctxCliente = document.getElementById('chart-cliente');
+  if (chartCliente) chartCliente.destroy();
+  chartCliente = new Chart(ctxCliente, {
+    type: 'bar',
+    data: {
+      labels: porCliente.map(r => r.cliente),
+      datasets: [{
+        label: 'Caixas',
+        data: porCliente.map(r => r.caixas),
+        backgroundColor: '#f2a93c',
+      }],
+    },
+    options: { ...chartOptions(), indexAxis: 'y' },
+  });
+
+  const porDia = await (await fetch('/api/etiquetas/por-dia?' + qs)).json();
+  const ctxDia = document.getElementById('chart-dia');
+  if (chartDia) chartDia.destroy();
+  chartDia = new Chart(ctxDia, {
+    type: 'bar',
+    data: {
+      labels: porDia.map(r => r.dia),
+      datasets: [{
+        label: 'Pallets',
+        data: porDia.map(r => r.pallets),
+        backgroundColor: '#63b3ed',
+      }],
+    },
+    options: chartOptions(),
+  });
+}
+
+function chartOptions() {
+  return {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#93a4b8' }, grid: { color: '#29374966' } },
+      y: { ticks: { color: '#93a4b8' }, grid: { color: '#29374966' } },
+    },
+  };
+}
+
+preencherFiltros();
+carregar();
+['f-mes', 'f-ano', 'f-quinzena'].forEach(id =>
+  document.getElementById(id).addEventListener('change', carregar)
+);
+
+// Atualiza os dados sozinho a cada 60 segundos, sem precisar dar F5
+setInterval(carregar, 60000);
+</script>
+{% endblock %}

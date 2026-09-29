@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Expedição — Dashboard Logística{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Expedição</h1>
+  <div class="filters">
+    <select id="f-mes"></select>
+    <select id="f-ano"></select>
+    <select id="f-quinzena">
+      <option value="0">Mês inteiro</option>
+      <option value="1">1ª quinzena</option>
+      <option value="2">2ª quinzena</option>
+    </select>
+  </div>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="label">Cargas no período</div><div class="value" id="kpi-cargas">—</div></div>
+  <div class="kpi"><div class="label">Paletes expedidos</div><div class="value" id="kpi-paletes">—</div></div>
+  <div class="kpi"><div class="label">Veículos expedidos</div><div class="value" id="kpi-veiculos">—</div></div>
+  <div class="kpi"><div class="label">Tipos de veículo</div><div class="value" id="kpi-tipos">—</div></div>
+</div>
+
+<div class="charts">
+  <div class="panel">
+    <h2>Expedições por dia</h2>
+    <canvas id="chart-dia"></canvas>
+  </div>
+  <div class="panel">
+    <h2>Paletes por cliente</h2>
+    <canvas id="chart-cliente"></canvas>
+  </div>
+  <div class="panel">
+    <h2>Paletes por tipo de veículo</h2>
+    <canvas id="chart-tipo-veiculo"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+const hoje = new Date();
+
+function preencherFiltros() {
+  const selMes = document.getElementById('f-mes');
+  MESES.forEach((m, i) => {
+    const opt = document.createElement('option');
+    opt.value = i + 1;
+    opt.textContent = m;
+    if (i + 1 === hoje.getMonth() + 1) opt.selected = true;
+    selMes.appendChild(opt);
+  });
+
+  const selAno = document.getElementById('f-ano');
+  const anoAtual = hoje.getFullYear();
+  for (let a = anoAtual; a >= anoAtual - 3; a--) {
+    const opt = document.createElement('option');
+    opt.value = a;
+    opt.textContent = a;
+    if (a === anoAtual) opt.selected = true;
+    selAno.appendChild(opt);
+  }
+}
+
+function paramsAtuais() {
+  return new URLSearchParams({
+    mes: document.getElementById('f-mes').value,
+    ano: document.getElementById('f-ano').value,
+    quinzena: document.getElementById('f-quinzena').value,
+  });
+}
+
+let chartDia, chartTipoVeiculo, chartCliente;
+
+async function carregar() {
+  const qs = paramsAtuais();
+
+  const resumo = await (await fetch('/api/expedicao/resumo?' + qs)).json();
+  document.getElementById('kpi-cargas').textContent = resumo.total_cargas;
+  document.getElementById('kpi-paletes').textContent = resumo.total_paletes;
+  document.getElementById('kpi-veiculos').textContent = resumo.total_veiculos;
+  document.getElementById('kpi-tipos').textContent = resumo.total_tipos_veiculo;
+
+  const porDia = await (await fetch('/api/expedicao/por-dia?' + qs)).json();
+  const ctxDia = document.getElementById('chart-dia');
+  if (chartDia) chartDia.destroy();
+  chartDia = new Chart(ctxDia, {
+    type: 'line',
+    data: {
+      labels: porDia.map(r => r.dia),
+      datasets: [{
+        label: 'Expedições',
+        data: porDia.map(r => r.total),
+        borderColor: '#4fd1c5',
+        backgroundColor: '#4fd1c533',
+        tension: 0.25,
+        fill: true,
+      }],
+    },
+    options: chartOptions(),
+  });
+
+  const porTipoVeiculo = await (await fetch('/api/expedicao/por-tipo-veiculo?' + qs)).json();
+  const ctxTipoVeiculo = document.getElementById('chart-tipo-veiculo');
+  if (chartTipoVeiculo) chartTipoVeiculo.destroy();
+  chartTipoVeiculo = new Chart(ctxTipoVeiculo, {
+    type: 'bar',
+    data: {
+      labels: porTipoVeiculo.map(r => r.tipo),
+      datasets: [{
+        label: 'Paletes',
+        data: porTipoVeiculo.map(r => r.paletes),
+        backgroundColor: '#4fd1c5',
+      }],
+    },
+    options: { ...chartOptions(), indexAxis: 'y' },
+  });
+
+  const porCliente = await (await fetch('/api/expedicao/por-cliente?' + qs)).json();
+  const ctxCliente = document.getElementById('chart-cliente');
+  if (chartCliente) chartCliente.destroy();
+  chartCliente = new Chart(ctxCliente, {
+    type: 'bar',
+    data: {
+      labels: porCliente.map(r => r.cliente),
+      datasets: [{
+        label: 'Paletes',
+        data: porCliente.map(r => r.paletes),
+        backgroundColor: '#f2a93c',
+      }],
+    },
+    options: { ...chartOptions(), indexAxis: 'y' },
+  });
+}
+
+function chartOptions() {
+  return {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#93a4b8' }, grid: { color: '#29374966' } },
+      y: { ticks: { color: '#93a4b8' }, grid: { color: '#29374966' } },
+    },
+  };
+}
+
+preencherFiltros();
+carregar();
+['f-mes', 'f-ano', 'f-quinzena'].forEach(id =>
+  document.getElementById(id).addEventListener('change', carregar)
+);
+
+// Atualiza os dados sozinho a cada 60 segundos, sem precisar dar F5
+setInterval(carregar, 60000);
+</script>
+{% endblock %}
