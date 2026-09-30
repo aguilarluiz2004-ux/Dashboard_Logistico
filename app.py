@@ -589,12 +589,13 @@ def api_expedicao_por_tipo_veiculo():
     where, params = args_filtro()
     conn = get_conn()
     cursor = conn.cursor()
+    # Conta veículos distintos (por romaneio), não paletes
     cursor.execute(f'''
-        SELECT veiculo as tipo, SUM(pallets) as paletes
+        SELECT veiculo as tipo, COUNT(DISTINCT romaneio) as total
         FROM expedicao
         WHERE {where}
         GROUP BY veiculo
-        ORDER BY paletes DESC
+        ORDER BY total DESC
     ''', params)
     dados = [dict(linha) for linha in cursor.fetchall()]
     conn.close()
