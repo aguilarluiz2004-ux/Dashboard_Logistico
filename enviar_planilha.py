@@ -1,18 +1,21 @@
 """
-Vigia a planilha no seu PC e envia para o PythonAnywhere quando ela mudar.
+Monitora a planilha no seu PC e envia automaticamente para o PythonAnywhere
+quando o arquivo for alterado.
 
-No seu computador:
-
+Instalação:
     python -m pip install requests
+
+Execução:
     python enviar_planilha.py
 
-Deixe a janela aberta para continuar monitorando a planilha.
+Deixe esta janela aberta enquanto quiser o monitoramento automático.
 """
 
 import os
 import shutil
 import tempfile
 import time
+
 import requests
 
 
@@ -20,7 +23,6 @@ import requests
 # CONFIGURAÇÕES
 # ============================================================
 
-# Caminho REAL da sua planilha no computador
 CAMINHO_PLANILHA_PC = (
     r"C:\Users\LuizAugustoAguilarTo"
     r"\OneDrive - 4log"
@@ -30,64 +32,46 @@ CAMINHO_PLANILHA_PC = (
     r"\base_operacao.xlsx"
 )
 
-# Endereço da API hospedada no PythonAnywhere
 URL = (
     "https://LuizAguilartorres.pythonanywhere.com"
     "/api/upload-planilha"
 )
 
-# Token de segurança
 TOKEN = os.environ.get(
     "UPLOAD_TOKEN",
     "dmfSZOG5_BgI8Gcr9GlIIw9YJj_M9Ozfeh3uvXPlYnA"
 )
 
-# Tempo entre cada verificação
 INTERVALO = 10
-
-# Tempo para garantir que Excel/OneDrive terminou de salvar
 ESTABILIZAR = 5
 
 
 # ============================================================
-# COPIAR PLANILHA PARA ARQUIVO TEMPORÁRIO
+# COPIAR PLANILHA PARA TEMPORÁRIO
 # ============================================================
 
 def copiar_para_temporario():
-    """
-    Copia a planilha para um arquivo temporário.
-
-    Isso evita tentar enviar diretamente um arquivo
-    que esteja aberto pelo Excel.
-    """
-
     destino = os.path.join(
         tempfile.gettempdir(),
         "base_operacao_envio.xlsx"
     )
 
-    for tentativa in range(5):
-
+    for tentativa in range(1, 6):
         try:
-
             shutil.copy2(
                 CAMINHO_PLANILHA_PC,
                 destino
             )
-
             return destino
 
         except PermissionError:
-
             print(
-                f"Arquivo ocupado. "
-                f"Tentativa {tentativa + 1}/5..."
+                f"Arquivo ocupado. Tentativa {tentativa}/5..."
             )
-
             time.sleep(2)
 
     raise PermissionError(
-        "Arquivo ocupado, não consegui copiar."
+        "Arquivo ocupado. Não foi possível criar a cópia temporária."
     )
 
 
@@ -96,82 +80,84 @@ def copiar_para_temporario():
 # ============================================================
 
 def enviar():
+    copia = None
 
     try:
-
         copia = copiar_para_temporario()
 
-        with open(copia, "rb") as f:
-
+        with open(copia, "rb") as arquivo:
             resposta = requests.post(
-
                 URL,
-
                 headers={
                     "X-Token": TOKEN
                 },
-
                 files={
                     "planilha": (
                         "base_operacao.xlsx",
-                        f
+                        arquivo,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
                 },
-
                 timeout=180
             )
 
-        # ====================================================
-        # SUCESSO
-        # ====================================================
+        horario = time.strftime("%H:%M:%S")
 
         if resposta.ok:
-
             print(
-                f"[{time.strftime('%H:%M:%S')}] "
+                f"[{horario}] "
                 "Planilha enviada e importada com sucesso."
             )
 
+            try:
+                print(f"Servidor: {resposta.json()}")
+            except ValueError:
+                pass
+
             return True
 
-        # ====================================================
-        # ERRO DA API
-        # ====================================================
+        print("=" * 70)
+        print(f"[{horario}] FALHA NO SERVIDOR")
+        print(f"Status HTTP: {resposta.status_code}")
+        print("Resposta do servidor:")
 
-        print(
-            f"[{time.strftime('%H:%M:%S')}] "
-            f"Falha ({resposta.status_code}): "
-            f"{resposta.text}"
-        )
+        try:
+            print(resposta.json())
+        except ValueError:
+            print(resposta.text)
+
+        print("=" * 70)
 
         return False
 
     except requests.exceptions.Timeout:
-
         print(
             f"[{time.strftime('%H:%M:%S')}] "
             "Tempo limite excedido ao enviar a planilha."
         )
-
         return False
 
-    except requests.exceptions.ConnectionError:
-
+    except requests.exceptions.ConnectionError as erro:
         print(
             f"[{time.strftime('%H:%M:%S')}] "
             "Não foi possível conectar ao PythonAnywhere."
         )
-
+        print(f"Detalhes: {erro}")
         return False
 
     except Exception as erro:
-
         print(
             f"[{time.strftime('%H:%M:%S')}] "
-            f"Erro ao enviar: {erro}"
+            f"Erro ao enviar: {type(erro).__name__}: {erro}"
         )
-
         return False
+
+    finally:
+        if copia and os.path.exists(copia):
+            try:
+                os.remove(copia)
+            except OSError:
+                pass
 
 
 # ============================================================
@@ -179,100 +165,79 @@ def enviar():
 # ============================================================
 
 def main():
-
-    # None significa:
-    # enviar a planilha uma vez quando iniciar
     ultima = None
 
-    print("=" * 60)
+    print("=" * 70)
     print("MONITOR DE PLANILHA")
-    print("=" * 60)
-
-    print(
-        f"Vigiando:\n{CAMINHO_PLANILHA_PC}"
-    )
-
-    print(
-        f"Servidor:\n{URL}"
-    )
-
-    print("=" * 60)
+    print("=" * 70)
+    print(f"Vigiando:\n{CAMINHO_PLANILHA_PC}")
+    print(f"Servidor:\n{URL}")
+    print(f"Intervalo: {INTERVALO} segundos")
+    print(f"Estabilização: {ESTABILIZAR} segundos")
+    print("=" * 70)
 
     while True:
-
         try:
-
-            # Verifica quando a planilha foi modificada
             atual = os.path.getmtime(
                 CAMINHO_PLANILHA_PC
             )
 
-            # Se for a primeira execução
-            # ou se a planilha foi alterada
             if atual != ultima:
-
                 print(
-                    "Planilha alterada. "
+                    f"[{time.strftime('%H:%M:%S')}] "
+                    f"Planilha alterada. "
                     f"Aguardando {ESTABILIZAR} segundos..."
                 )
 
-                # Espera Excel/OneDrive terminarem
-                # de salvar o arquivo
                 time.sleep(ESTABILIZAR)
 
-                # Verifica novamente
                 novo_mtime = os.path.getmtime(
                     CAMINHO_PLANILHA_PC
                 )
 
-                # Se ainda estiver mudando,
-                # espera o próximo ciclo
                 if novo_mtime != atual:
-
                     print(
-                        "A planilha ainda está sendo modificada."
+                        f"[{time.strftime('%H:%M:%S')}] "
+                        "A planilha ainda está sendo modificada. "
+                        "Vou verificar novamente."
                     )
-
                     time.sleep(INTERVALO)
-
                     continue
 
                 print(
+                    f"[{time.strftime('%H:%M:%S')}] "
                     "Enviando planilha..."
                 )
 
-                # Tenta enviar
                 if enviar():
+                    ultima = novo_mtime
 
-                    # Só marca como processada
-                    # se o envio realmente funcionou
-                    ultima = atual
+            time.sleep(INTERVALO)
 
         except FileNotFoundError:
-
             print(
                 f"[{time.strftime('%H:%M:%S')}] "
                 "Planilha não encontrada."
             )
-
             print(
-                "Confira o CAMINHO_PLANILHA_PC."
+                f"Confira o caminho:\n{CAMINHO_PLANILHA_PC}"
             )
+            time.sleep(INTERVALO)
 
-        except Exception as erro:
-
+        except PermissionError as erro:
             print(
                 f"[{time.strftime('%H:%M:%S')}] "
-                f"Erro: {erro}"
+                f"Arquivo sem acesso: {erro}"
             )
+            time.sleep(INTERVALO)
 
-        # Aguarda antes de verificar novamente
-        time.sleep(INTERVALO)
+        except Exception as erro:
+            print(
+                f"[{time.strftime('%H:%M:%S')}] "
+                f"Erro no monitor: {type(erro).__name__}: {erro}"
+            )
+            time.sleep(INTERVALO)
 
-
-# ============================================================
-# INICIAR PROGRAMA
-# ============================================================
 
 if __name__ == "__main__":
     main()

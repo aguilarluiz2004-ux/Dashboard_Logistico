@@ -234,93 +234,303 @@ def importar_tabela_completa(df, nome_tabela, colunas_sql, conn):
     conn.commit()
 
 
+def normalizar_colunas(df):
+    """Padroniza os nomes das colunas do Excel."""
+    df = df.copy()
+    df.columns = (
+        df.columns
+        .astype(str)
+        .str.replace("\n", " ", regex=False)
+        .str.strip()
+        .str.upper()
+        .str.replace(r"\\s+", " ", regex=True)
+    )
+    return df
+
+
+def preparar_colunas(df, obrigatorias, nome_aba):
+    """Normaliza e valida as colunas de uma aba."""
+    df = normalizar_colunas(df)
+
+    print("=" * 70)
+    print(f"COLUNAS RECEBIDAS - ABA {nome_aba}")
+    print(df.columns.tolist())
+    print("=" * 70)
+
+    faltando = [c for c in obrigatorias if c not in df.columns]
+
+    if faltando:
+        raise ValueError(
+            f"Aba {nome_aba}: colunas obrigatórias ausentes: {faltando}. "
+            f"Colunas encontradas: {df.columns.tolist()}"
+        )
+
+    return df
+
+
 def rodar_importacao():
-    """Faz backup da planilha e importa a PARTIR DA CÓPIA."""
+    """Faz backup da planilha e importa as três abas para o SQLite."""
     with lock_importacao:
         os.makedirs(PASTA_BACKUP, exist_ok=True)
 
-        hoje = datetime.now().strftime('%Y-%m-%d')
-        caminho_backup = os.path.join(PASTA_BACKUP, f'base_operacao_{hoje}.xlsx')
+        hoje = datetime.now().strftime("%Y-%m-%d")
+        caminho_backup = os.path.join(
+            PASTA_BACKUP,
+            f"base_operacao_{hoje}.xlsx"
+        )
         shutil.copy2(CAMINHO_PLANILHA, caminho_backup)
 
-        df_recebimento = pd.read_excel(caminho_backup, sheet_name='RECEBIMENTO')
-        df_expedicao = pd.read_excel(caminho_backup, sheet_name='EXPEDICAO')
-        df_etiquetas = pd.read_excel(caminho_backup, sheet_name='ETIQUETAS')
+        # =====================================================
+        # RECEBIMENTO
+        # =====================================================
+        df_recebimento = pd.read_excel(
+            caminho_backup,
+            sheet_name="RECEBIMENTO"
+        )
 
-        # ---- Recebimento
-        df_recebimento = df_recebimento[['NOTA FISCAL', 'QTD.PALLET', 'DATA', 'CLIENTE', 'NUM.PEDIDO', 'PLACA', 'NUM.CTE', 'TIPO DO VEICULO']]
-        df_recebimento = df_recebimento.rename(columns={
-            'NOTA FISCAL': 'nota_fiscal',
-            'QTD.PALLET': 'pallets',
-            'DATA': 'data',
-            'CLIENTE': 'cliente',
-            'NUM.PEDIDO': 'pedido',
-            'PLACA': 'placa',
-            'NUM.CTE': 'cte',
-            'TIPO DO VEICULO': 'veiculo'
+        df_recebimento = preparar_colunas(
+            df_recebimento,
+            [
+                "NOTA FISCAL",
+                "QTD.PALLET",
+                "DATA",
+                "CLIENTE",
+                "NUM.PEDIDO",
+                "PLACA",
+                "NUM.CTE",
+                "TIPO DO VEICULO"
+            ],
+            "RECEBIMENTO"
+        )
+
+        df_recebimento = df_recebimento[
+            [
+                "NOTA FISCAL",
+                "QTD.PALLET",
+                "DATA",
+                "CLIENTE",
+                "NUM.PEDIDO",
+                "PLACA",
+                "NUM.CTE",
+                "TIPO DO VEICULO"
+            ]
+        ].rename(columns={
+            "NOTA FISCAL": "nota_fiscal",
+            "QTD.PALLET": "pallets",
+            "DATA": "data",
+            "CLIENTE": "cliente",
+            "NUM.PEDIDO": "pedido",
+            "PLACA": "placa",
+            "NUM.CTE": "cte",
+            "TIPO DO VEICULO": "veiculo"
         })
-        validar_datas(df_recebimento, 'data', 'nota_fiscal', 'recebimento')
 
-        # ---- Expedição
-        df_expedicao = df_expedicao[['NOTA FISCAL', 'QTD.PALLET', 'PLACA', 'DATA', 'CLIENTE', 'QUANTIDADE DE CAIXAS', 'TIPO DO VEICULO', 'ROMANEIO']]
-        df_expedicao = df_expedicao.rename(columns={
-            'NOTA FISCAL': 'nota_fiscal',
-            'QTD.PALLET': 'pallets',
-            'PLACA': 'placa',
-            'DATA': 'data',
-            'CLIENTE': 'cliente',
-            'QUANTIDADE DE CAIXAS': 'caixas',
-            'TIPO DO VEICULO': 'veiculo',
-            'ROMANEIO': 'romaneio'
+        validar_datas(
+            df_recebimento,
+            "data",
+            "nota_fiscal",
+            "recebimento"
+        )
+
+        # =====================================================
+        # EXPEDIÇÃO
+        # =====================================================
+        df_expedicao = pd.read_excel(
+            caminho_backup,
+            sheet_name="EXPEDICAO"
+        )
+
+        df_expedicao = preparar_colunas(
+            df_expedicao,
+            [
+                "ROMANEIO",
+                "MOTORISTA",
+                "PLACA",
+                "TRANSPORTADORA",
+                "NOTA FISCAL",
+                "NUM.PEDIDO",
+                "QTD.PALLET",
+                "TIPO DO VEICULO",
+                "QUANTIDADE DE CAIXAS",
+                "DATA",
+                "HORA",
+                "CLIENTE",
+                "DESTINO"
+            ],
+            "EXPEDICAO"
+        )
+
+        df_expedicao = df_expedicao[
+            [
+                "ROMANEIO",
+                "MOTORISTA",
+                "PLACA",
+                "TRANSPORTADORA",
+                "NOTA FISCAL",
+                "NUM.PEDIDO",
+                "QTD.PALLET",
+                "TIPO DO VEICULO",
+                "QUANTIDADE DE CAIXAS",
+                "DATA",
+                "HORA",
+                "CLIENTE",
+                "DESTINO"
+            ]
+        ].rename(columns={
+            "ROMANEIO": "romaneio",
+            "MOTORISTA": "motorista",
+            "PLACA": "placa",
+            "TRANSPORTADORA": "transportadora",
+            "NOTA FISCAL": "nota_fiscal",
+            "NUM.PEDIDO": "pedido",
+            "QTD.PALLET": "pallets",
+            "TIPO DO VEICULO": "veiculo",
+            "QUANTIDADE DE CAIXAS": "caixas",
+            "DATA": "data",
+            "HORA": "hora",
+            "CLIENTE": "cliente",
+            "DESTINO": "destino"
         })
-        validar_datas(df_expedicao, 'data', 'nota_fiscal', 'expedicao')
 
-        # ---- Etiquetas
-        df_etiquetas = df_etiquetas[[
-            'NÚMERO DO PEDIDO', 'QUANTIDADE DE PALLETS', 'QUANTIDADE DE CAIXAS', 'CLIENTE',
-            'TAMANHO DA ETIQUETA', 'DATA DE INICIO', 'OPERADOR', 'DATA DE CONCLUSÃO', 'CAIXAS ETIQUETADAS'
-        ]]
-        df_etiquetas = df_etiquetas.rename(columns={
-            'NÚMERO DO PEDIDO': 'pedido',
-            'QUANTIDADE DE PALLETS': 'pallets',
-            'QUANTIDADE DE CAIXAS': 'caixas',
-            'CLIENTE': 'cliente',
-            'TAMANHO DA ETIQUETA': 'etiqueta',
-            'DATA DE INICIO': 'dt_inicio',
-            'OPERADOR': 'operador',
-            'DATA DE CONCLUSÃO': 'dt_conclusao',
-            'CAIXAS ETIQUETADAS': 'cx_etiquetadas'
+        validar_datas(
+            df_expedicao,
+            "data",
+            "nota_fiscal",
+            "expedicao"
+        )
+
+        # =====================================================
+        # ETIQUETAS
+        # =====================================================
+        df_etiquetas = pd.read_excel(
+            caminho_backup,
+            sheet_name="ETIQUETAS"
+        )
+
+        df_etiquetas = preparar_colunas(
+            df_etiquetas,
+            [
+                "NÚMERO DO PEDIDO",
+                "QUANTIDADE DE PALLETS",
+                "QUANTIDADE DE CAIXAS",
+                "CLIENTE",
+                "TAMANHO DA ETIQUETA",
+                "DATA DE INICIO",
+                "OPERADOR",
+                "DATA DE CONCLUSÃO",
+                "CAIXAS ETIQUETADAS"
+            ],
+            "ETIQUETAS"
+        )
+
+        df_etiquetas = df_etiquetas[
+            [
+                "NÚMERO DO PEDIDO",
+                "QUANTIDADE DE PALLETS",
+                "QUANTIDADE DE CAIXAS",
+                "CLIENTE",
+                "TAMANHO DA ETIQUETA",
+                "DATA DE INICIO",
+                "OPERADOR",
+                "DATA DE CONCLUSÃO",
+                "CAIXAS ETIQUETADAS"
+            ]
+        ].rename(columns={
+            "NÚMERO DO PEDIDO": "pedido",
+            "QUANTIDADE DE PALLETS": "pallets",
+            "QUANTIDADE DE CAIXAS": "caixas",
+            "CLIENTE": "cliente",
+            "TAMANHO DA ETIQUETA": "etiqueta",
+            "DATA DE INICIO": "dt_inicio",
+            "OPERADOR": "operador",
+            "DATA DE CONCLUSÃO": "dt_conclusao",
+            "CAIXAS ETIQUETADAS": "cx_etiquetadas"
         })
-        validar_datas(df_etiquetas, 'dt_inicio', 'pedido', 'etiquetas')
-        validar_datas(df_etiquetas, 'dt_conclusao', 'pedido', 'etiquetas')
 
-        # ---- Gravando no banco
+        validar_datas(
+            df_etiquetas,
+            "dt_inicio",
+            "pedido",
+            "etiquetas"
+        )
+        validar_datas(
+            df_etiquetas,
+            "dt_conclusao",
+            "pedido",
+            "etiquetas"
+        )
+
+        # =====================================================
+        # GRAVAR NO BANCO
+        # =====================================================
         conn = sqlite3.connect(DADOS_OPERACAO, timeout=30)
         cursor = conn.cursor()
 
         importar_tabela_completa(
             df=df_recebimento,
-            nome_tabela='recebimento',
-            colunas_sql='nota_fiscal TEXT, pallets INTEGER, data TEXT, cliente TEXT, pedido TEXT, placa TEXT, cte TEXT, veiculo TEXT',
+            nome_tabela="recebimento",
+            colunas_sql=(
+                "nota_fiscal TEXT, "
+                "pallets INTEGER, "
+                "data TEXT, "
+                "cliente TEXT, "
+                "pedido TEXT, "
+                "placa TEXT, "
+                "cte TEXT, "
+                "veiculo TEXT"
+            ),
             conn=conn
         )
+
         importar_tabela_completa(
             df=df_expedicao,
-            nome_tabela='expedicao',
-            colunas_sql='nota_fiscal TEXT, pallets INTEGER, placa TEXT, data TEXT, cliente TEXT, caixas INTEGER, veiculo TEXT, romaneio TEXT',
+            nome_tabela="expedicao",
+            colunas_sql=(
+                "romaneio TEXT, "
+                "motorista TEXT, "
+                "placa TEXT, "
+                "transportadora TEXT, "
+                "nota_fiscal TEXT, "
+                "pedido TEXT, "
+                "pallets INTEGER, "
+                "veiculo TEXT, "
+                "caixas INTEGER, "
+                "data TEXT, "
+                "hora TEXT, "
+                "cliente TEXT, "
+                "destino TEXT"
+            ),
             conn=conn
         )
+
         importar_tabela(
             df=df_etiquetas,
-            nome_tabela='etiquetas',
-            colunas_sql='pedido TEXT, pallets INTEGER, caixas INTEGER, cliente TEXT, etiqueta TEXT, dt_inicio TEXT, operador TEXT, dt_conclusao TEXT, cx_etiquetadas INTEGER',
-            chave_primaria='pedido',
+            nome_tabela="etiquetas",
+            colunas_sql=(
+                "pedido TEXT, "
+                "pallets INTEGER, "
+                "caixas INTEGER, "
+                "cliente TEXT, "
+                "etiqueta TEXT, "
+                "dt_inicio TEXT, "
+                "operador TEXT, "
+                "dt_conclusao TEXT, "
+                "cx_etiquetadas INTEGER"
+            ),
+            chave_primaria="pedido",
             conn=conn,
             cursor=cursor
         )
 
         conn.close()
-        print(f'[{datetime.now().strftime("%H:%M:%S")}] Planilha importada (backup: {caminho_backup})')
+
+        print(
+            f'[{datetime.now().strftime("%H:%M:%S")}] '
+            f"Planilha importada com sucesso "
+            f"(backup: {caminho_backup})"
+        )
+
+
 
 
 # =============================
@@ -394,8 +604,22 @@ def api_upload_planilha():
     try:
         salvar_e_importar(arquivo)
     except Exception as erro:
-        return jsonify({'erro': str(erro)}), 500
-    return jsonify({'ok': True})
+        import traceback
+        print('=' * 70)
+        print(f'[ERRO] {type(erro).__name__}: {erro}')
+        traceback.print_exc()
+        print('=' * 70)
+
+        return jsonify({
+            'ok': False,
+            'erro': str(erro),
+            'tipo': type(erro).__name__
+        }), 500
+
+    return jsonify({
+        'ok': True,
+        'mensagem': 'Planilha enviada e importada com sucesso.'
+    })
 
 
 # Importa ao iniciar, se o banco ainda não existir e a planilha estiver na pasta.
@@ -617,6 +841,78 @@ def api_expedicao_por_cliente():
     ''', params)
     dados = [dict(linha) for linha in cursor.fetchall()]
     conn.close()
+    return jsonify(dados)
+
+
+# =============================
+# API - Expedição detalhada
+# =============================
+@app.route('/api/expedicao/detalhes')
+def api_expedicao_detalhes():
+    where, params = args_filtro()
+
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    cursor.execute(f"""
+        SELECT
+            romaneio, motorista, placa, transportadora,
+            nota_fiscal, pedido, pallets, veiculo, caixas,
+            data, hora, cliente, destino
+        FROM expedicao
+        WHERE {where}
+        ORDER BY data, hora, romaneio
+    """, params)
+
+    dados = [dict(linha) for linha in cursor.fetchall()]
+    conn.close()
+
+    return jsonify(dados)
+
+
+@app.route('/api/expedicao/por-destino')
+def api_expedicao_por_destino():
+    where, params = args_filtro()
+
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    cursor.execute(f"""
+        SELECT
+            COALESCE(NULLIF(TRIM(destino), ''), 'Não informado') AS destino,
+            COUNT(DISTINCT romaneio) AS total
+        FROM expedicao
+        WHERE {where}
+        GROUP BY destino
+        ORDER BY total DESC
+    """, params)
+
+    dados = [dict(linha) for linha in cursor.fetchall()]
+    conn.close()
+
+    return jsonify(dados)
+
+
+@app.route('/api/expedicao/por-motorista')
+def api_expedicao_por_motorista():
+    where, params = args_filtro()
+
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    cursor.execute(f"""
+        SELECT
+            COALESCE(NULLIF(TRIM(motorista), ''), 'Não informado') AS motorista,
+            COUNT(DISTINCT romaneio) AS total
+        FROM expedicao
+        WHERE {where}
+        GROUP BY motorista
+        ORDER BY total DESC
+    """, params)
+
+    dados = [dict(linha) for linha in cursor.fetchall()]
+    conn.close()
+
     return jsonify(dados)
 
 
