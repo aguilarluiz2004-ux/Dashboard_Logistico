@@ -3,6 +3,11 @@ operacao.db
 *.xlsx
 backups/
 
+# Login e segurança (NUNCA versionar)
+secret_key.txt
+usuarios.db
+.env
+
 # Python
 __pycache__/
 *.pyc

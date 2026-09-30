@@ -1,15 +1,126 @@
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import sqlite3
 import shutil
 import os
+import secrets
 import threading
 import time
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for
+from werkzeug.security import check_password_hash
 
 app = Flask(__name__)
 
 CAMINHO_PLANILHA = 'base_operacao.xlsx'
+
+
+#=============================
+# Configuração de segurança / login
+#=============================
+def carregar_secret_key():
+    """A SECRET_KEY assina o cookie de sessão. Se alguém descobrir essa chave,
+    consegue forjar um login. Por isso ela NÃO fica escrita no código:
+    1) usa a variável de ambiente SECRET_KEY, se existir;
+    2) senão, usa/gera o arquivo secret_key.txt (coloque no .gitignore!)."""
+    chave = os.environ.get('SECRET_KEY')
+    if chave:
+        return chave
+
+    if os.path.exists('secret_key.txt'):
+        with open('secret_key.txt') as f:
+            return f.read().strip()
+
+    chave = secrets.token_hex(32)
+    with open('secret_key.txt', 'w') as f:
+        f.write(chave)
+    return chave
+
+
+app.secret_key = carregar_secret_key()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,     # JavaScript não consegue ler o cookie
+    SESSION_COOKIE_SAMESITE='Lax',    # dificulta ataques vindos de outros sites
+    # Só envia o cookie por HTTPS. Ative com a variável HTTPS=1 quando publicar.
+    SESSION_COOKIE_SECURE=os.environ.get('HTTPS') == '1',
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),  # login expira em 8h
+)
+
+# Bloqueio simples contra tentativa de adivinhar senha (por IP)
+MAX_FALHAS = 5
+BLOQUEIO_SEGUNDOS = 300
+tentativas = {}  # ip -> (falhas, bloqueado_ate)
+
+
+def get_conn_usuarios():
+    """Usuários ficam em um banco SEPARADO (usuarios.db), pra nunca serem
+    afetados pela reimportação da planilha no operacao.db."""
+    conn = sqlite3.connect('usuarios.db')
+    conn.row_factory = sqlite3.Row
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            usuario TEXT PRIMARY KEY,
+            senha_hash TEXT NOT NULL,
+            criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    return conn
+
+
+@app.before_request
+def exigir_login():
+    """Roda ANTES de toda requisição. Protege páginas e APIs de uma vez,
+    então nenhuma rota nova fica aberta por esquecimento."""
+    if request.endpoint in ('login', 'static'):
+        return None
+    if 'usuario' in session:
+        return None
+
+    if request.path.startswith('/api/'):
+        return jsonify({'erro': 'não autenticado'}), 401
+    return redirect(url_for('login'))
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    erro = None
+
+    if request.method == 'POST':
+        ip = request.remote_addr
+        falhas, bloqueado_ate = tentativas.get(ip, (0, 0))
+
+        if time.time() < bloqueado_ate:
+            erro = 'Muitas tentativas. Aguarde alguns minutos.'
+        else:
+            usuario = request.form.get('usuario', '').strip().lower()
+            senha = request.form.get('senha', '')
+
+            conn = get_conn_usuarios()
+            linha = conn.execute(
+                'SELECT senha_hash FROM usuarios WHERE usuario = ?', (usuario,)
+            ).fetchone()
+            conn.close()
+
+            if linha and check_password_hash(linha['senha_hash'], senha):
+                tentativas.pop(ip, None)
+                session.clear()
+                session['usuario'] = usuario
+                session.permanent = True
+                return redirect(url_for('dashboard_recebimento'))
+
+            falhas += 1
+            if falhas >= MAX_FALHAS:
+                tentativas[ip] = (0, time.time() + BLOQUEIO_SEGUNDOS)
+            else:
+                tentativas[ip] = (falhas, 0)
+            erro = 'Usuário ou senha inválidos.'
+
+    return render_template('login.html', erro=erro)
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 
 #=============================
@@ -661,6 +772,7 @@ def api_etiquetas_por_dia():
 
 
 if __name__ == '__main__':
+    get_conn_usuarios().close()  # garante que usuarios.db e a tabela existem
     rodar_importacao_com_retentativas()  # importa (com retentativas) ao subir o servidor
 
     thread_monitor = threading.Thread(target=monitorar_planilha, daemon=True)

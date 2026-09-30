@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .login {
+      background: #fff;
+      padding: 32px;
+      border-radius: 8px;
+      box-shadow: 0 1px 6px rgba(0,0,0,.12);
+      width: 100%;
+      max-width: 340px;
+    }
+    h1 { margin: 0 0 20px; font-size: 22px; text-align: center; }
+    label { display: block; font-size: 14px; margin-bottom: 4px; color: #444; }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 15px;
+    }
+    button {
+      width: 100%;
+      padding: 11px;
+      background: #1a73e8;
+      color: #fff;
+      border: 0;
+      border-radius: 4px;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    button:hover { background: #155fc0; }
+    .erro {
+      background: #fdecea;
+      color: #b3261e;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <form class="login" method="post" action="/login">
+    <h1>Dashboard Operação</h1>
+
+    {% if erro %}
+      <div class="erro">{{ erro }}</div>
+    {% endif %}
+
+    <label for="usuario">Usuário</label>
+    <input type="text" id="usuario" name="usuario" autocomplete="username" required autofocus>
+
+    <label for="senha">Senha</label>
+    <input type="password" id="senha" name="senha" autocomplete="current-password" required>
+
+    <button type="submit">Entrar</button>
+  </form>
+</body>
+</html>
