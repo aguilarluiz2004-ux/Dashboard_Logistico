@@ -205,3 +205,17 @@ main {
     padding: 20px;
   }
 }
+
+.btn-sair {
+  margin-left: auto;          /* empurra o botão para a direita da barra */
+  padding: 6px 14px;
+  border: 1px solid #293749;
+  border-radius: 6px;
+  color: #93a4b8;
+  text-decoration: none;
+  font-size: 14px;
+}
+.btn-sair:hover {
+  color: #fff;
+  border-color: #4fd1c5;
+}

@@ -232,7 +232,7 @@ def rodar_importacao():
     #=============================
     # Formatando o expedicao
     #==============================
-    df_expedicao = df_expedicao[['NOTA FISCAL', 'QTD.PALLET', 'PLACA', 'DATA', 'CLIENTE', 'QUANTIDADE DE CAIXAS', 'TIPO DO VEICULO']]
+    df_expedicao = df_expedicao[['NOTA FISCAL', 'QTD.PALLET', 'PLACA', 'DATA', 'CLIENTE', 'QUANTIDADE DE CAIXAS', 'TIPO DO VEICULO', 'ROMANEIO']]
 
     df_expedicao = df_expedicao.rename(columns={
         'NOTA FISCAL': 'nota_fiscal',
@@ -241,7 +241,8 @@ def rodar_importacao():
         'DATA': 'data',
         'CLIENTE': 'cliente',
         'QUANTIDADE DE CAIXAS': 'caixas',
-        'TIPO DO VEICULO': 'veiculo'
+        'TIPO DO VEICULO': 'veiculo',
+        'ROMANEIO': 'romaneio'
     })
 
     validar_datas(df_expedicao, coluna='data', identificador='nota_fiscal', nome_tabela='expedicao')
@@ -284,7 +285,7 @@ def rodar_importacao():
     importar_tabela_completa(
         df=df_expedicao,
         nome_tabela='expedicao',
-        colunas_sql='nota_fiscal TEXT, pallets INTEGER, placa TEXT, data TEXT, cliente TEXT, caixas INTEGER, veiculo TEXT',
+        colunas_sql='nota_fiscal TEXT, pallets INTEGER, placa TEXT, data TEXT, cliente TEXT, caixas INTEGER, veiculo TEXT, romaneio TEXT',
         conn=conn
     )
 
@@ -620,9 +621,10 @@ def api_expedicao_resumo():
     where, params = filtro_data(request.args.get('mes'), request.args.get('ano'), request.args.get('quinzena'))
     conn = get_conn()
     cursor = conn.cursor()
+    # Veículos expedidos = romaneios distintos (o mesmo romaneio se repete em várias linhas)
     cursor.execute(f'''
         SELECT COUNT(*) as cargas, SUM(pallets) as paletes,
-               COUNT(DISTINCT placa) as veiculos, COUNT(DISTINCT veiculo) as tipos
+               COUNT(DISTINCT romaneio) as veiculos, COUNT(DISTINCT veiculo) as tipos
         FROM expedicao
         WHERE {where}
     ''', params)
