@@ -28,6 +28,7 @@ CAMINHO_PLANILHA = os.path.join(BASE_DIR, 'base', 'base_operacao.xlsx')
 DADOS_OPERACAO = os.path.join(BASE_DIR, 'banco_de_dados', 'operacao.db')
 DADOS_USUARIOS = os.path.join(BASE_DIR, 'banco_de_dados', 'usuarios.db')
 ARQUIVO_SECRET = os.path.join(BASE_DIR, 'secret_key.txt')
+ARQUIVO_TOKEN_UPLOAD = os.path.join(BASE_DIR, 'token_upload.txt')
 PASTA_BACKUP = os.path.join(BASE_DIR, 'backups')
 
 # Garante que as pastas existem (o SQLite não cria pasta sozinho)
@@ -58,7 +59,26 @@ def carregar_secret_key():
     return chave
 
 
+def carregar_token_upload():
+    """Token usado pelo script do seu PC para enviar a planilha sem login.
+    Usa a variável UPLOAD_TOKEN ou gera/lê o arquivo token_upload.txt
+    (coloque no .gitignore!). Para ver o token: cat ~/Dashboard/token_upload.txt"""
+    token = os.environ.get('UPLOAD_TOKEN')
+    if token:
+        return token
+
+    if os.path.exists(ARQUIVO_TOKEN_UPLOAD):
+        with open(ARQUIVO_TOKEN_UPLOAD) as f:
+            return f.read().strip()
+
+    token = secrets.token_urlsafe(32)
+    with open(ARQUIVO_TOKEN_UPLOAD, 'w') as f:
+        f.write(token)
+    return token
+
+
 app.secret_key = carregar_secret_key()
+TOKEN_UPLOAD = carregar_token_upload()
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
@@ -99,7 +119,7 @@ def get_conn():
 @app.before_request
 def exigir_login():
     """Roda ANTES de toda requisição, protegendo páginas e APIs."""
-    if request.endpoint in ('login', 'static'):
+    if request.endpoint in ('login', 'static', 'api_upload_planilha'):
         return None
     if 'usuario' in session:
         return None
@@ -325,6 +345,23 @@ PAGINA_UPLOAD = '''
 '''
 
 
+def salvar_e_importar(arquivo):
+    """Salva o .xlsx recebido, confere as abas e importa. Levanta erro se algo falhar."""
+    temporario = CAMINHO_PLANILHA + '.novo'
+    arquivo.save(temporario)
+    try:
+        abas = pd.ExcelFile(temporario).sheet_names
+        faltando = [a for a in ('RECEBIMENTO', 'EXPEDICAO', 'ETIQUETAS') if a not in abas]
+        if faltando:
+            raise ValueError(f'Abas faltando: {", ".join(faltando)}')
+
+        os.replace(temporario, CAMINHO_PLANILHA)
+        rodar_importacao()
+    finally:
+        if os.path.exists(temporario):
+            os.remove(temporario)
+
+
 @app.route('/atualizar', methods=['GET', 'POST'])
 def atualizar_planilha():
     msg = ''
@@ -333,24 +370,32 @@ def atualizar_planilha():
         if not arquivo or not arquivo.filename.lower().endswith('.xlsx'):
             msg = '<p style="color:red">Envie um arquivo .xlsx.</p>'
         else:
-            temporario = CAMINHO_PLANILHA + '.novo'
-            arquivo.save(temporario)
             try:
-                # Testa se as abas existem antes de trocar o arquivo oficial
-                abas = pd.ExcelFile(temporario).sheet_names
-                faltando = [a for a in ('RECEBIMENTO', 'EXPEDICAO', 'ETIQUETAS') if a not in abas]
-                if faltando:
-                    raise ValueError(f'Abas faltando: {", ".join(faltando)}')
-
-                os.replace(temporario, CAMINHO_PLANILHA)
-                rodar_importacao()
+                salvar_e_importar(arquivo)
                 msg = '<p style="color:green">Planilha importada com sucesso!</p>'
             except Exception as erro:
-                if os.path.exists(temporario):
-                    os.remove(temporario)
                 msg = f'<p style="color:red">Erro ao importar: {erro}</p>'
 
     return PAGINA_UPLOAD.format(msg=msg)
+
+
+@app.route('/api/upload-planilha', methods=['POST'])
+def api_upload_planilha():
+    """Usada pelo script enviar_planilha.py rodando no seu PC (sem login,
+    mas exige o token no cabeçalho X-Token)."""
+    token = request.headers.get('X-Token', '')
+    if not secrets.compare_digest(token, TOKEN_UPLOAD):
+        return jsonify({'erro': 'token inválido'}), 401
+
+    arquivo = request.files.get('planilha')
+    if not arquivo:
+        return jsonify({'erro': 'arquivo não enviado'}), 400
+
+    try:
+        salvar_e_importar(arquivo)
+    except Exception as erro:
+        return jsonify({'erro': str(erro)}), 500
+    return jsonify({'ok': True})
 
 
 # Importa ao iniciar, se o banco ainda não existir e a planilha estiver na pasta.
@@ -656,3 +701,6 @@ def api_etiquetas_por_dia():
     conn.close()
     return jsonify(dados)
 
+
+# Não há "if __name__ == '__main__'" nem waitress: no PythonAnywhere quem
+# executa o app é o servidor deles, através do arquivo WSGI.
