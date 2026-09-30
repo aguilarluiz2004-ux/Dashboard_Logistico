@@ -103,7 +103,7 @@ def rodar_importacao():
     #=============================
     # Formatando o recebimento
     #=============================
-    df_recebimento = df_recebimento[['NOTA FISCAL', 'QTD.PALLET', 'DATA', 'CLIENTE', 'NUM.PEDIDO', 'PLACA', 'TIPO DO VEICULO']]
+    df_recebimento = df_recebimento[['NOTA FISCAL', 'QTD.PALLET', 'DATA', 'CLIENTE', 'NUM.PEDIDO', 'PLACA', 'NUM.CTE', 'TIPO DO VEICULO']]
 
     df_recebimento = df_recebimento.rename(columns={
         'NOTA FISCAL': 'nota_fiscal',
@@ -112,6 +112,7 @@ def rodar_importacao():
         'CLIENTE': 'cliente',
         'NUM.PEDIDO': 'pedido',
         'PLACA': 'placa',
+        'NUM.CTE': 'cte',
         'TIPO DO VEICULO': 'veiculo'
     })
 
@@ -165,7 +166,7 @@ def rodar_importacao():
     importar_tabela_completa(
         df=df_recebimento,
         nome_tabela='recebimento',
-        colunas_sql='nota_fiscal TEXT, pallets INTEGER, data TEXT, cliente TEXT, pedido TEXT, placa TEXT, veiculo TEXT',
+        colunas_sql='nota_fiscal TEXT, pallets INTEGER, data TEXT, cliente TEXT, pedido TEXT, placa TEXT, cte TEXT, veiculo TEXT',
         conn=conn
     )
 
@@ -429,9 +430,10 @@ def api_recebimento_resumo():
     where, params = filtro_data(request.args.get('mes'), request.args.get('ano'), request.args.get('quinzena'))
     conn = get_conn()
     cursor = conn.cursor()
+    # Veículos recebidos = CTEs distintos (o mesmo CTE se repete em várias linhas)
     cursor.execute(f'''
         SELECT COUNT(*) as total, COUNT(DISTINCT cliente) as clientes, SUM(pallets) as pallets,
-               COUNT(DISTINCT placa) as veiculos, COUNT(DISTINCT veiculo) as tipos
+               COUNT(DISTINCT cte) as veiculos, COUNT(DISTINCT veiculo) as tipos
         FROM recebimento
         WHERE {where}
     ''', params)
@@ -486,9 +488,9 @@ def api_recebimento_por_tipo_veiculo():
     where, params = filtro_data(request.args.get('mes'), request.args.get('ano'), request.args.get('quinzena'))
     conn = get_conn()
     cursor = conn.cursor()
-    # Conta veículos distintos (por placa), não recebimentos
+    # Conta veículos distintos (por CTE), não recebimentos
     cursor.execute(f'''
-        SELECT veiculo as tipo, COUNT(DISTINCT placa) as total
+        SELECT veiculo as tipo, COUNT(DISTINCT cte) as total
         FROM recebimento
         WHERE {where}
         GROUP BY veiculo
